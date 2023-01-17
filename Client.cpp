@@ -1,15 +1,15 @@
 /**
- * wire.cpp : Defines the entry point for the client console application.
+ * Client.cpp : Defines the entry point for the client console application.
  * 
  * Build:
  * POSIX   => g++ -o wire.exe wire.cpp Payload.cpp
  * WINDOWS => cl /DWINDOWS_OS wire.cpp ws2_32.lib
  * 
  * Run:
- * POSIX   => ./wire.exe <file-name> <hostname> <port>
- * WINDOWS => wire <file-name> <hostname> <port>
+ * POSIX   => ./Client.exe <file-name> <hostname> <port>
+ * WINDOWS => Client <file-name> <hostname> <port>
  * 
- * Eg. ./wire.exe sample.txt 127.0.0.1 8000
+ * Eg. ./Client.exe sample.txt 127.0.0.1 8000
 */
 #ifdef WINDOWS_OS
   #include <windows.h>
@@ -68,122 +68,7 @@ bool StartSocket();
     int CloseSocket( int s ) { shutdown (s, 2); return 0; }
 #endif
 
-
-class CClientSocket
-{
-    char m_ServerName[255];
-    int m_PortNumber;
-    struct sockaddr_in m_Server;
-    struct hostent *m_HostPointer;
-    unsigned int m_addr;
-    SOCKET m_ConnectSock;
-
-    public:
-        CClientSocket(char *ServerName, int PortNumber) {
-            strcpy(m_ServerName, ServerName);
-            m_PortNumber = PortNumber;
-        }
-
-        SOCKET GetSocket() { return m_ConnectSock; }
-
-        bool Resolve() {
-            if (isalpha(m_ServerName[0])) {
-                m_HostPointer = gethostbyname(m_ServerName);
-            } else {   
-                /* Convert nnn.nnn address to a usable one */
-                m_addr = inet_addr(m_ServerName);
-                m_HostPointer = gethostbyaddr((char *)&m_addr, 4, AF_INET);
-            }
-            if (m_HostPointer == NULL)
-            {
-                return false;
-            }
-
-            memset(&m_Server, 0, sizeof(m_Server));
-
-            memcpy(&(m_Server.sin_addr), m_HostPointer->h_addr, m_HostPointer->h_length);
-            m_Server.sin_family = m_HostPointer->h_addrtype;
-            m_Server.sin_port = htons(m_PortNumber);
-            return true;
-        }
-
-        bool Connect()
-        {
-            m_ConnectSock = socket(AF_INET, SOCK_STREAM, 0);
-            if (m_ConnectSock < 0)
-            {
-                return false;
-            }
-
-            if (connect(m_ConnectSock,
-                        (struct sockaddr *)&m_Server,
-                        sizeof(m_Server)) == SOCKET_ERROR)
-            {
-                return false;
-            }
-            return true;
-        }
-
-        bool Send(void *buffer, int len)
-        {
-            int RetVal = send(m_ConnectSock, (const char *)buffer, len, 0);
-            if (RetVal == SOCKET_ERROR)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        bool Receive(void *buffer, int *len)
-        {
-            cout << "......................Received The Function.... " << endl;
-            int RetVal = recv(m_ConnectSock, (char *)buffer, *len, 0);
-            cout << "......................Received The Function.... " << RetVal << endl;
-
-            if (RetVal == 0 || RetVal == -1)
-            {
-                printf("Error at socket(): %ld\n", SocketGetLastError());
-                return false;
-            }
-
-            *len = RetVal;
-            return true;
-        }
-
-        int Close()
-        {
-            CloseSocket(m_ConnectSock);
-            return 0;
-        }
-};
-
-bool SendEOF(SOCKET s) {
-    T_FILE_EOF eof = MakeEof();
-    int bytes_send = send(s, (char *) &eof, sizeof(eof), 0);
-    return bytes_send > 0 ;
-}
-
-bool ReadSocketBuffer(SOCKET s, char *bfr, int size) {
-    int RetVal = recv(s ,bfr,size,0);
-	 if ( RetVal == 0 || RetVal == -1) 
-		return false;
-    return true;
-}
-
-bool WriteSocketBuffer(SOCKET s, char *bfr, int size) {
-    int RetVal = send(s ,bfr, size, 0);
-	 if ( RetVal == 0 || RetVal == -1) 
-		 return false;
-    return true;
-}
-
-bool SendAcknowledgement(SOCKET s)
-{
-    T_ACK ack = MakeAck();
-    int bytes_send = send(s, (char *)&ack, sizeof(ack), 0);
-    return bytes_send > 0;
-}
+#include "Client.h"
 
 int main(int argc, char **argv )
 {
@@ -255,7 +140,7 @@ int main(int argc, char **argv )
     cout <<endl << "Ready to Transfer File ...................\n" << endl;
 
     // Create file meta data struct and send to socket 
-    T_FILE_META  file_meta_data = MakeFileMeta(file_name, size_file);
+    T_FILE_META file_meta_data = MakeFileMeta(file_name, size_file);
     c_sock.Send(&file_meta_data,sizeof(file_meta_data));
 
     // Receive acknowledgment from server
@@ -334,7 +219,8 @@ int main(int argc, char **argv )
     cout << "Finished Sending File, About to send EOF " << endl;
 
     // Send EOF packet, so the server gets confirmation that all packets have been sent.
-    SendEOF(c_sock.GetSocket());
+    T_FILE_EOF eof = MakeEof();
+    c_sock.Send(&eof,sizeof(eof));
     cout << "Finished Sending EOF " << endl ;
 
     // Close socket connection and clean up.
