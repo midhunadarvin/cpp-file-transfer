@@ -14,7 +14,7 @@ Server.cpp : Defines the entry point for the server console application.
 Client.cpp : Defines the entry point for the client console application.
 
     Build:
-    POSIX   => g++ -o wire.exe Client.cpp Payload.cpp
+    POSIX   => g++ -o Client.exe Client.cpp Payload.cpp
     WINDOWS => cl /DWINDOWS_OS Client.cpp ws2_32.lib
     
     Run:
